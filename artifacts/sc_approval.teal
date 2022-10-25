@@ -25,10 +25,6 @@ int NoOp
 bnz main_l7
 err
 main_l7:
-global GroupSize
-int 1
-==
-assert
 txna ApplicationArgs 0
 byte "Add"
 ==

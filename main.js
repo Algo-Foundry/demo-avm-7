@@ -40,46 +40,6 @@ const transferAlgos = async (from, to, amount) => {
   return txn;
 }
 
-const createAsset = async () => {
-  const suggestedParams = await algodClient.getTransactionParams().do();
-
-  // create the asset creation transaction
-  const txn = algosdk.makeAssetCreateTxnWithSuggestedParamsFromObject({
-    from: creator.addr,
-    total: 1000000,
-    decimals: 0,
-    assetName: "TESTASSET",
-    unitName: "TA",
-    assetURL: "website",
-    assetMetadataHash: undefined,
-    defaultFrozen: false,
-    freeze: creator.addr,
-    manager: creator.addr,
-    clawback: creator.addr,
-    reserve: creator.addr,
-    suggestedParams,
-  });
-
-  // sign the transaction
-  const signedTxn = txn.signTxn(creator.sk);
-
-  return await submitAtomicToNetwork([signedTxn]);
-}
-
-const assetOptIn = async (receiver, assetId) => {
-  const suggestedParams = await algodClient.getTransactionParams().do();
-
-  let txn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-    from: receiver,
-    to: receiver,
-    assetIndex: assetId,
-    amount: 0,
-    suggestedParams
-  });
-
-  return txn;
-};
-
 const getBasicProgramBytes = async (filename) => {
   // Read file for Teal code
   const filePath = path.join(__dirname, filename);
@@ -144,12 +104,42 @@ const appCall = async (sender, appId, appArgs) => {
   return callTxn;
 }
 
+const readGlobalState = async (appId) => {
+  const app = await algodClient.getApplicationByID(appId).do();
+  
+  // global state is a key value array
+  const globalState = app.params["global-state"];
+  const formattedGlobalState = globalState.map(item => {
+    // decode from base64 and utf8
+    const formattedKey = decodeURIComponent(Buffer.from(item.key, "base64"));
+
+    let formattedValue;
+    if (item.value.type === 1) {
+      if (formattedKey === "voted") {
+        formattedValue = decodeURIComponent(Buffer.from(item.value.bytes, "base64"));
+      } else {
+        formattedValue = item.value.bytes;
+      }
+    } else {
+      formattedValue = item.value.uint;
+    }
+    
+    return {
+      key: formattedKey,
+      value: formattedValue
+    }
+  });
+
+  console.log(formattedGlobalState);
+}
+
 (async () => {
   // deploy counter app
-  let appId;
-  if (process.env.APP_ID !== undefined) {
+  if (process.env.APP_ID !== "") {
+    console.log("loading app from env");
     appId = Number(process.env.APP_ID);
   } else {
+    console.log("deploying app");
     appId = await deployCounterApp(creator);
   }
 
@@ -160,7 +150,8 @@ const appCall = async (sender, appId, appArgs) => {
   // txn1: call application to add counter
   let addAppArgs = [];
   addAppArgs.push(new Uint8Array(Buffer.from("Add")));
-  const txn1 = await appCall(sender, appId, addAppArgs);
+  let txn1 = await appCall(sender, appId, addAppArgs);
+  txn1.fee = 0;
 
   // txn2: creator will pay extra fees to cover txn1
   let txn2 = await transferAlgos(creator.addr, acc1.addr, 1000000);
@@ -175,6 +166,7 @@ const appCall = async (sender, appId, appArgs) => {
 
   try {
     await submitAtomicToNetwork(signedTxns);
+    await readGlobalState(appId);
   } catch (err) {
     console.log(err.message);
   }

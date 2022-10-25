@@ -28,12 +28,9 @@ def approval_program():
          Return(Int(1))
     ])
 
-    handle_noop = Seq(
-        Assert(Global.group_size() == Int(1)), 
-        Cond(
-            [Txn.application_args[0] == Bytes("Add"), add], 
-            [Txn.application_args[0] == Bytes("Deduct"), deduct]
-        )
+    handle_noop = Cond(
+        [Txn.application_args[0] == Bytes("Add"), add], 
+        [Txn.application_args[0] == Bytes("Deduct"), deduct]
     )
 
 
