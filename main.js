@@ -146,7 +146,12 @@ const appCall = async (sender, appId, appArgs) => {
 
 (async () => {
   // deploy counter app
-  // const appId = await deployCounterApp(creator);
+  let appId;
+  if (process.env.APP_ID !== undefined) {
+    appId = Number(process.env.APP_ID);
+  } else {
+    appId = await deployCounterApp(creator);
+  }
 
   // sender acc is a new acc with no algos
   const sender = algosdk.generateAccount();
@@ -155,7 +160,7 @@ const appCall = async (sender, appId, appArgs) => {
   // txn1: call application to add counter
   let addAppArgs = [];
   addAppArgs.push(new Uint8Array(Buffer.from("Add")));
-  const txn1 = await appCall(sender, 16, addAppArgs);
+  const txn1 = await appCall(sender, appId, addAppArgs);
 
   // txn2: creator will pay extra fees to cover txn1
   let txn2 = await transferAlgos(creator.addr, acc1.addr, 1000000);
